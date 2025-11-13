@@ -1,0 +1,6 @@
+name,image_path,predicted_emotion
+Joy Tony-Idaka,images/sample1.jpg,Happy
+Sarah Dan,images/sample2.jpg,Surprised
+John Doe,images/sample3.jpg,Angry
+Ada Nwosu,images/sample4.jpg,Sad
+Emmanuel Ojo,images/sample5.jpg,Neutral
