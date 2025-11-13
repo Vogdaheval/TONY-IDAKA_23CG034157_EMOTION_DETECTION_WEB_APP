@@ -1,74 +1,120 @@
+# app.py
 import streamlit as st
-import cv2
 import numpy as np
-from tensorflow.keras.models import load_model
-from tensorflow.keras.preprocessing.image import img_to_array
+import cv2
 from PIL import Image
+import tensorflow as tf
+from tensorflow.keras.models import load_model
+import os
 
-# Load pretrained model
-model = load_model("models/emotion_model.h5")
+# -------------------------------------------------
+# 1. Page config (nice title + icon)
+# -------------------------------------------------
+st.set_page_config(
+    page_title="Emotion Detection Web App",
+    page_icon="😃",
+    layout="centered"
+)
 
-# Emotion categories
-class_labels = ['Angry', 'Disgust', 'Fear', 'Happy', 'Neutral', 'Sad', 'Surprise']
+# -------------------------------------------------
+# 2. Title & short description
+# -------------------------------------------------
+st.title("😃 Real-time Facial Emotion Detection")
+st.markdown(
+    """
+    Upload a **clear photo of a single face** and the model will predict one of the seven emotions:  
+    **Angry 😡 · Disgust 🤢 · Fear 😱 · Happy 😀 · Neutral 😐 · Sad 😢 · Surprise 😲**
+    """
+)
 
-st.title("😊 AI Emotion Detection App")
-st.write("Upload an image or use your webcam to detect emotions in real-time.")
+# -------------------------------------------------
+# 3. Load the pre-trained model (cached)
+# -------------------------------------------------
+@st.cache_resource
+def load_emotion_model():
+    model_path = "model.h5"          # <-- put your .h5 file in the repo root
+    if not os.path.exists(model_path):
+        st.error(
+            f"Model file `{model_path}` not found! "
+            "Please add it to the repository root."
+        )
+        st.stop()
+    try:
+        # tf 2.16+ works with the same load_model call
+        model = load_model(model_path)
+        st.success("Model loaded successfully!")
+        return model
+    except Exception as e:
+        st.error(f"Failed to load model: {e}")
+        st.stop()
 
-# Choose input mode
-option = st.radio("Select Input Mode:", ("📸 Upload Image", "🎥 Live Webcam"))
+model = load_emotion_model()
 
-if option == "📸 Upload Image":
-    uploaded_file = st.file_uploader("Upload a face image", type=["jpg", "jpeg", "png"])
-    if uploaded_file is not None:
-        image = Image.open(uploaded_file)
-        st.image(image, caption="Uploaded Image", use_container_width=True)
+# -------------------------------------------------
+# 4. Emotion label mapping (order must match training)
+# -------------------------------------------------
+emotion_labels = [
+    "Angry", "Disgust", "Fear", "Happy",
+    "Neutral", "Sad", "Surprise"
+]
 
-        # Preprocess image
-        image = image.convert('L')
-        image = image.resize((48, 48))
-        img = img_to_array(image)
-        img = np.expand_dims(img, axis=0)
-        img /= 255.0
+# -------------------------------------------------
+# 5. Image upload widget
+# -------------------------------------------------
+uploaded_file = st.file_uploader(
+    "Choose an image (JPG / PNG)",
+    type=["jpg", "jpeg", "png"]
+)
 
-        # Predict emotion
-        prediction = model.predict(img)
-        label = class_labels[prediction.argmax()]
+if uploaded_file is not None:
+    # -------------------------------------------------
+    # 6. Open with PIL (keeps alpha channel handling safe)
+    # -------------------------------------------------
+    image = Image.open(uploaded_file)
 
-        st.success(f"Predicted Emotion: **{label}**")
+    # Convert to RGB if it has an alpha channel (PNG)
+    if image.mode != "RGB":
+        image = image.convert("RGB")
 
-elif option == "🎥 Live Webcam":
-    st.warning("Press 'Start' to begin webcam detection (requires camera access).")
+    st.image(image, caption="Uploaded Image", use_column_width=True)
 
-    run = st.checkbox("Start")
-    FRAME_WINDOW = st.image([])
+    # -------------------------------------------------
+    # 7. Pre-process for the model
+    # -------------------------------------------------
+    # Most FER models expect 48×48 or 224×224 grayscale – adjust size below
+    TARGET_SIZE = (48, 48)          # <-- change if your model uses 224×224
 
-    camera = cv2.VideoCapture(0)
+    # Resize → grayscale → normalize
+    img_array = np.array(image)
+    gray = cv2.cvtColor(img_array, cv2.COLOR_RGB2GRAY)
+    resized = cv2.resize(gray, TARGET_SIZE)
+    normalized = resized / 255.0
+    final_input = normalized.reshape(1, TARGET_SIZE[0], TARGET_SIZE[1], 1)
 
-    while run:
-        ret, frame = camera.read()
-        if not ret:
-            st.error("Cannot access camera.")
-            break
+    # -------------------------------------------------
+    # 8. Predict
+    # -------------------------------------------------
+    with st.spinner("Analyzing emotion..."):
+        preds = model.predict(final_input)
+        pred_idx = int(np.argmax(preds, axis=1)[0])
+        confidence = float(preds[0][pred_idx])
+        emotion = emotion_labels[pred_idx]
 
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
-        faces = face_cascade.detectMultiScale(gray, 1.3, 5)
+    # -------------------------------------------------
+    # 9. Show result
+    # -------------------------------------------------
+    st.subheader("Prediction")
+    st.markdown(f"**Emotion:** {emotion}  ")
+    st.progress(confidence)
+    st.caption(f"Confidence: {confidence:.2%}")
 
-        for (x, y, w, h) in faces:
-            roi_gray = gray[y:y+h, x:x+w]
-            roi_gray = cv2.resize(roi_gray, (48, 48))
-            roi = roi_gray.astype("float") / 255.0
-            roi = img_to_array(roi)
-            roi = np.expand_dims(roi, axis=0)
+    # Optional: show all probabilities in an expander
+    with st.expander("See all probabilities"):
+        prob_df = {
+            "Emotion": emotion_labels,
+            "Probability": [float(p) for p in preds[0]]
+        }
+        st.dataframe(prob_df, use_container_width=True)
 
-            preds = model.predict(roi)[0]
-            label = class_labels[preds.argmax()]
-            label_position = (x, y)
-            cv2.putText(frame, label, label_position, cv2.FONT_HERSHEY_SIMPLEX, 1, (0,255,0), 2)
-            cv2.rectangle(frame, (x,y), (x+w,y+h), (255,0,0), 2)
-
-        FRAME_WINDOW.image(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
-
-    camera.release()
-    st.info("Webcam stopped.")
-
+else:
+    st.info("👆 Upload an image to get started.")
