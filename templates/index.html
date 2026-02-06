@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Emotion AI</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <header>
+    <h1>Emotion Detection</h1>
+    <p>Upload an image or use your webcam</p>
+  </header>
+
+  <div class="container">
+    <div class="card">
+      <h2>Upload Image</h2>
+      <form action="{{ url_for('predict') }}" method="POST" enctype="multipart/form-data">
+        <input type="file" name="image" accept="image/*" required>
+        <button type="submit" class="btn">Analyze</button>
+      </form>
+    </div>
+
+    <div class="card">
+      <h2>Live Webcam</h2>
+      <video id="video" width="480" height="360" autoplay></video>
+      <br>
+      <button id="capture" class="btn">Capture & Analyze</button>
+      <canvas id="canvas" width="480" height="360" style="display:none;"></canvas>
+    </div>
+  </div>
+
+  <footer>
+    <p>© 2025 Emotion AI</p>
+  </footer>
+
+  <script>
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const captureButton = document.getElementById('capture');
+
+    navigator.mediaDevices.getUserMedia({ video: true })
+      .then(stream => video.srcObject = stream)
+      .catch(err => alert('Webcam access denied.'));
+
+    captureButton.addEventListener('click', () => {
+      const context = canvas.getContext('2d');
+      context.drawImage(video, 0, 0, canvas.width, canvas.height);
+      canvas.toBlob(blob => {
+        const formData = new FormData();
+        formData.append('file', blob, 'webcam.jpg');
+        fetch('/predict', { method: 'POST', body: formData })
+          .then(res => res.text())
+          .then(html => document.write(html))
+          .catch(err => alert('Error: ' + err));
+      }, 'image/jpeg');
+    });
+  </script>
+</body>
+</html>

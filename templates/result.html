@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Emotion Result</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <header>
+    <h1>Emotion Analysis Result</h1>
+  </header>
+
+  <div class="container">
+    <div class="card">
+      <img src="{{ url_for('static', filename=image_path) }}" alt="Uploaded Image" class="preview">
+
+      <h2>Dominant Emotion: {{ result.dominant_emotion }}</h2>
+
+      <h3>Confidence Scores:</h3>
+      <ul>
+        {% for emo, score in result.scores.items() %}
+          <li>{{ emo }}: {{ '%.2f'|format(score) }}%</li>
+        {% endfor %}
+      </ul>
+
+      <a href="/" class="btn">Try Another Image</a>
+    </div>
+  </div>
+
+  <footer>
+    <p>© 2025 Emotion AI</p>
+  </footer>
+</body>
+</html>
