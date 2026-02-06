@@ -1,2 +1,2 @@
 
-Live Demo (Render):https://emotion-detection-web-app-with-flask-1.onrender.com/
+https://tony-idaka-23cg034157-emotion-detection-1gnz.onrender.com
